@@ -10,11 +10,14 @@ import io
 import csv
 import time
 import logging
+import tempfile
+import shutil
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from typing import List, Tuple, Optional
 
 from flask import Flask, render_template, jsonify, request, send_file
+from werkzeug.utils import secure_filename
 
 # ---------------------------------------------------------------------------
 # Data Model
@@ -144,15 +147,132 @@ def parse_all_files(directory: str, pattern: str = "RMFW*.txt") -> Tuple[List[RM
 
 app = Flask(__name__)
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(DATA_DIR, 'uploads')
+ALLOWED_EXTENSIONS = {'txt', 'rmf'}
+
+# Create upload folder
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Global cache
 ALL_RECORDS: List[RMFRecord] = []
 PARSE_STATS: dict = {}
 
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def clear_uploads():
+    """Clear all files in upload folder."""
+    for filename in os.listdir(UPLOAD_FOLDER):
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            logging.error(f"Error deleting {file_path}: {e}")
+
+
 def init_data():
+    """Initialize data from uploaded files."""
     global ALL_RECORDS, PARSE_STATS
-    ALL_RECORDS, PARSE_STATS = parse_all_files(DATA_DIR)
+    ALL_RECORDS, PARSE_STATS = parse_all_files(UPLOAD_FOLDER)
+
+
+@app.route("/api/upload", methods=["POST"])
+def api_upload():
+    """Handle file uploads and parse them."""
+    global ALL_RECORDS, PARSE_STATS
+    
+    if 'files' not in request.files:
+        return jsonify({"error": "No files provided"}), 400
+    
+    files = request.files.getlist('files')
+    if not files or files[0].filename == '':
+        return jsonify({"error": "No files selected"}), 400
+    
+    # Clear previous uploads if requested
+    clear_first = request.form.get('clear_existing', 'false').lower() == 'true'
+    if clear_first:
+        clear_uploads()
+        ALL_RECORDS = []
+    
+    uploaded_files = []
+    errors = []
+    
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            # Handle duplicate filenames
+            counter = 1
+            original_name = filename
+            while os.path.exists(filepath):
+                name, ext = os.path.splitext(original_name)
+                filename = f"{name}_{counter}{ext}"
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                counter += 1
+            
+            try:
+                file.save(filepath)
+                uploaded_files.append(filename)
+            except Exception as e:
+                errors.append(f"{original_name}: {str(e)}")
+        else:
+            errors.append(f"{file.filename}: Invalid file type (only .txt and .rmf allowed)")
+    
+    if not uploaded_files:
+        return jsonify({
+            "error": "No valid files uploaded",
+            "details": errors
+        }), 400
+    
+    # Re-parse all files in upload folder
+    try:
+        ALL_RECORDS, PARSE_STATS = parse_all_files(UPLOAD_FOLDER)
+    except Exception as e:
+        return jsonify({
+            "error": f"Parse error: {str(e)}",
+            "uploaded": uploaded_files
+        }), 500
+    
+    return jsonify({
+        "success": True,
+        "uploaded_files": uploaded_files,
+        "errors": errors if errors else None,
+        "total_records": len(ALL_RECORDS),
+        "files_parsed": PARSE_STATS.get('files_parsed', 0)
+    })
+
+
+@app.route("/api/files", methods=["GET"])
+def api_files():
+    """List uploaded files."""
+    files = []
+    for filename in os.listdir(UPLOAD_FOLDER):
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        if os.path.isfile(filepath):
+            stat = os.stat(filepath)
+            files.append({
+                "name": filename,
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+            })
+    return jsonify({"files": files})
+
+
+@app.route("/api/files/clear", methods=["POST"])
+def api_clear_files():
+    """Clear all uploaded files."""
+    global ALL_RECORDS, PARSE_STATS
+    clear_uploads()
+    ALL_RECORDS = []
+    PARSE_STATS = {"files_parsed": 0, "total_records": 0}
+    return jsonify({"success": True, "message": "All files cleared"})
 
 
 @app.route("/")

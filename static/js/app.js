@@ -6,6 +6,7 @@ let metadata = {};
 let currentData = [];
 let dataTable = null;
 let cpuChart = null;
+let selectedFiles = [];
 
 // ── Colour palette (distinct, colour-blind friendly) ──────────────────
 const PALETTE = [
@@ -19,11 +20,234 @@ function colour(i) { return PALETTE[i % PALETTE.length]; }
 
 // ── Bootstrap on ready ────────────────────────────────────────────────
 $(document).ready(async () => {
-  await loadMetadata();
-  await loadData();
+  await checkExistingFiles();
   wireEvents();
+  wireUploadEvents();
   $('#loadingOverlay').addClass('hidden');
 });
+
+// ── Check for existing files ──────────────────────────────────────────
+async function checkExistingFiles() {
+  try {
+    const res = await fetch('/api/files');
+    const data = await res.json();
+    
+    if (data.files && data.files.length > 0) {
+      // Has existing files, load data
+      showDataSection();
+      await loadMetadata();
+      await loadData();
+      renderExistingFiles(data.files);
+    } else {
+      // No files, show upload section
+      showUploadSection();
+    }
+  } catch (e) {
+    console.error('Error checking files:', e);
+    showUploadSection();
+  }
+}
+
+// ── Section visibility ────────────────────────────────────────────────
+function showUploadSection() {
+  $('#uploadSection').show();
+  $('#dataSection').hide();
+  $('#loadingOverlay').addClass('hidden');
+}
+
+function showDataSection() {
+  $('#uploadSection').hide();
+  $('#dataSection').show();
+}
+
+// ── Upload Events ─────────────────────────────────────────────────────
+function wireUploadEvents() {
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  // Drag & Drop
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  // File input
+  fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+  });
+
+  // Upload button
+  $('#btnUpload').on('click', uploadFiles);
+  
+  // Clear files button
+  $('#btnClearFiles').on('click', () => {
+    selectedFiles = [];
+    updateFileList();
+  });
+
+  // Clear all existing files
+  $('#btnClearAll').on('click', clearAllFiles);
+
+  // Upload more button (from data section)
+  $('#btnUploadMore').on('click', () => {
+    showUploadSection();
+    selectedFiles = [];
+    updateFileList();
+  });
+}
+
+function handleFiles(files) {
+  selectedFiles = [...selectedFiles, ...Array.from(files)];
+  updateFileList();
+}
+
+function updateFileList() {
+  const container = $('#fileListContent');
+  container.empty();
+
+  if (selectedFiles.length === 0) {
+    $('#fileList').hide();
+    $('#uploadActions').hide();
+    return;
+  }
+
+  selectedFiles.forEach((file, index) => {
+    container.append(`
+      <div class="file-item">
+        <span>
+          <i class="bi bi-file-earmark-text me-2 text-primary"></i>
+          ${file.name} <small class="text-muted">(${(file.size / 1024).toFixed(1)} KB)</small>
+        </span>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})" title="Remove">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+    `);
+  });
+
+  $('#fileList').show();
+  $('#uploadActions').css('display', 'flex');
+}
+
+// Make removeFile globally accessible
+window.removeFile = function(index) {
+  selectedFiles.splice(index, 1);
+  updateFileList();
+};
+
+// Make clearAllFiles globally accessible
+window.clearAllFiles = async function() {
+  if (!confirm('Are you sure you want to clear all uploaded files?')) return;
+  
+  $('#loadingOverlay').removeClass('hidden');
+  $('#loadingText').text('Clearing files...');
+  
+  try {
+    const res = await fetch('/api/files/clear', { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.success) {
+      currentData = [];
+      showUploadSection();
+      $('#existingFiles').hide();
+      selectedFiles = [];
+      updateFileList();
+    }
+  } catch (e) {
+    console.error('Error clearing files:', e);
+    alert('Error clearing files: ' + e.message);
+  } finally {
+    $('#loadingOverlay').addClass('hidden');
+  }
+};
+
+async function uploadFiles() {
+  if (selectedFiles.length === 0) {
+    alert('Please select files to upload');
+    return;
+  }
+
+  $('#loadingOverlay').removeClass('hidden');
+  $('#loadingText').text('Uploading and parsing...');
+
+  const formData = new FormData();
+  selectedFiles.forEach(file => {
+    formData.append('files', file);
+  });
+  formData.append('clear_existing', $('#clearExisting').is(':checked'));
+
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      $('#uploadStatus').html(`
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle me-2"></i>
+          Uploaded ${data.uploaded_files.length} file(s), parsed ${data.total_records} records
+        </div>
+      `);
+      
+      selectedFiles = [];
+      updateFileList();
+      
+      // Switch to data view
+      showDataSection();
+      await loadMetadata();
+      await loadData();
+    } else {
+      $('#uploadStatus').html(`
+        <div class="alert alert-danger">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          ${data.error || 'Upload failed'}
+        </div>
+      `);
+    }
+  } catch (e) {
+    console.error('Upload error:', e);
+    $('#uploadStatus').html(`
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        Upload failed: ${e.message}
+      </div>
+    `);
+  } finally {
+    $('#loadingOverlay').addClass('hidden');
+  }
+}
+
+function renderExistingFiles(files) {
+  const container = $('#existingFilesList');
+  container.empty();
+  
+  files.forEach(file => {
+    const size = (file.size / 1024).toFixed(1);
+    container.append(`
+      <div class="file-item">
+        <span>
+          <i class="bi bi-file-earmark-check me-2 text-success"></i>
+          ${file.name} <small class="text-muted">(${size} KB)</small>
+        </span>
+      </div>
+    `);
+  });
+  
+  $('#existingFiles').show();
+}
 
 // ── Load metadata (filter options) ────────────────────────────────────
 async function loadMetadata() {
@@ -51,7 +275,16 @@ async function loadMetadata() {
 }
 
 function fillSelect(sel, items) {
+  // Save current selection
+  const currentVal = $(sel).val();
+  
+  $(sel).find('option:not(:first)').remove();
   items.forEach(v => $(sel).append(`<option value="${v}">${v}</option>`));
+  
+  // Restore selection if still valid
+  if (currentVal && items.includes(currentVal)) {
+    $(sel).val(currentVal);
+  }
 }
 
 // ── Load data (with optional filters) ─────────────────────────────────
