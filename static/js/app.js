@@ -1,6 +1,6 @@
-/* -----------------------------------------------------------------------
-   z/OS RMF Workload Activity Analyzer - Frontend
-   ----------------------------------------------------------------------- */
+/**
+ * RMF Workload Activity Analyzer - Frontend
+ */
 
 let metadata = {};
 let currentData = [];
@@ -8,17 +8,15 @@ let dataTable = null;
 let cpuChart = null;
 let selectedFiles = [];
 
-// ── Colour palette (distinct, colour-blind friendly) ──────────────────
+// Color palette
 const PALETTE = [
-  '#4e54c8','#f5576c','#4facfe','#43e97b','#fa709a','#fee140',
-  '#a18cd1','#fbc2eb','#f68084','#fccb90','#d4fc79','#96e6a1',
-  '#84fab0','#8fd3f4','#cfd9df','#e2ebf0','#667eea','#764ba2',
-  '#f093fb','#00f2fe','#38f9d7','#0ba360','#3cba92','#ff6a00',
+  '#3b82f6', '#ec4899', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444',
+  '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#d946ef',
 ];
 
 function colour(i) { return PALETTE[i % PALETTE.length]; }
 
-// ── Bootstrap on ready ────────────────────────────────────────────────
+// Initialize
 $(document).ready(async () => {
   await checkExistingFiles();
   wireEvents();
@@ -26,20 +24,18 @@ $(document).ready(async () => {
   $('#loadingOverlay').addClass('hidden');
 });
 
-// ── Check for existing files ──────────────────────────────────────────
+// Check for existing files
 async function checkExistingFiles() {
   try {
     const res = await fetch('/api/files');
     const data = await res.json();
     
     if (data.files && data.files.length > 0) {
-      // Has existing files, load data
       showDataSection();
       await loadMetadata();
       await loadData();
       renderExistingFiles(data.files);
     } else {
-      // No files, show upload section
       showUploadSection();
     }
   } catch (e) {
@@ -48,7 +44,7 @@ async function checkExistingFiles() {
   }
 }
 
-// ── Section visibility ────────────────────────────────────────────────
+// Section visibility
 function showUploadSection() {
   $('#uploadSection').show();
   $('#dataSection').hide();
@@ -60,7 +56,7 @@ function showDataSection() {
   $('#dataSection').show();
 }
 
-// ── Upload Events ─────────────────────────────────────────────────────
+// Upload Events
 function wireUploadEvents() {
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
@@ -81,7 +77,14 @@ function wireUploadEvents() {
     handleFiles(e.dataTransfer.files);
   });
 
-  // File input
+  // Click to select files
+  dropZone.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') {
+      fileInput.click();
+    }
+  });
+
+  // File input change
   fileInput.addEventListener('change', (e) => {
     handleFiles(e.target.files);
   });
@@ -95,10 +98,10 @@ function wireUploadEvents() {
     updateFileList();
   });
 
-  // Clear all existing files
+  // Clear all button
   $('#btnClearAll').on('click', clearAllFiles);
 
-  // Upload more button (from data section)
+  // Upload more button
   $('#btnUploadMore').on('click', () => {
     showUploadSection();
     selectedFiles = [];
@@ -107,50 +110,59 @@ function wireUploadEvents() {
 }
 
 function handleFiles(files) {
-  selectedFiles = [...selectedFiles, ...Array.from(files)];
+  const validFiles = Array.from(files).filter(file => 
+    file.name.endsWith('.txt') || file.name.endsWith('.rmf')
+  );
+  
+  if (validFiles.length !== files.length) {
+    showAlert('Only .txt and .rmf files are allowed', 'warning');
+  }
+  
+  selectedFiles = [...selectedFiles, ...validFiles];
   updateFileList();
 }
 
 function updateFileList() {
-  const container = $('#fileListContent');
+  const container = $('#fileList');
   container.empty();
 
   if (selectedFiles.length === 0) {
-    $('#fileList').hide();
+    $('#fileListSection').hide();
     $('#uploadActions').hide();
     return;
   }
 
   selectedFiles.forEach((file, index) => {
+    const size = (file.size / 1024).toFixed(1);
     container.append(`
-      <div class="file-item">
-        <span>
-          <i class="bi bi-file-earmark-text me-2 text-primary"></i>
-          ${file.name} <small class="text-muted">(${(file.size / 1024).toFixed(1)} KB)</small>
-        </span>
-        <button class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})" title="Remove">
-          <i class="bi bi-x"></i>
+      <div class="file-list-item">
+        <div class="file-icon">
+          <i class="bi bi-file-earmark-text"></i>
+        </div>
+        <div class="file-info">
+          <div class="file-name">${file.name}</div>
+          <div class="file-size">${size} KB</div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+          <i class="bi bi-x-lg"></i>
         </button>
       </div>
     `);
   });
 
-  $('#fileList').show();
-  $('#uploadActions').css('display', 'flex');
+  $('#fileListSection').show();
+  $('#uploadActions').show();
 }
 
-// Make removeFile globally accessible
 window.removeFile = function(index) {
   selectedFiles.splice(index, 1);
   updateFileList();
 };
 
-// Make clearAllFiles globally accessible
 window.clearAllFiles = async function() {
   if (!confirm('Are you sure you want to clear all uploaded files?')) return;
   
-  $('#loadingOverlay').removeClass('hidden');
-  $('#loadingText').text('Clearing files...');
+  showLoading('Clearing files...');
   
   try {
     const res = await fetch('/api/files/clear', { method: 'POST' });
@@ -159,107 +171,83 @@ window.clearAllFiles = async function() {
     if (data.success) {
       currentData = [];
       showUploadSection();
-      $('#existingFiles').hide();
+      $('#existingFilesSection').hide();
       selectedFiles = [];
       updateFileList();
+      showAlert('All files cleared', 'success');
     }
   } catch (e) {
-    console.error('Error clearing files:', e);
-    alert('Error clearing files: ' + e.message);
+    showAlert('Error clearing files: ' + e.message, 'danger');
   } finally {
-    $('#loadingOverlay').addClass('hidden');
+    hideLoading();
   }
 };
 
 async function uploadFiles() {
   if (selectedFiles.length === 0) {
-    alert('Please select files to upload');
+    showAlert('Please select files to upload', 'warning');
     return;
   }
 
-  $('#loadingOverlay').removeClass('hidden');
-  $('#loadingText').text('Uploading and parsing...');
+  showLoading('Uploading and parsing files...');
 
   const formData = new FormData();
-  selectedFiles.forEach(file => {
-    formData.append('files', file);
-  });
+  selectedFiles.forEach(file => formData.append('files', file));
   formData.append('clear_existing', $('#clearExisting').is(':checked'));
 
   try {
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData
-    });
-
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
     const data = await res.json();
 
     if (data.success) {
-      $('#uploadStatus').html(`
-        <div class="alert alert-success">
-          <i class="bi bi-check-circle me-2"></i>
-          Uploaded ${data.uploaded_files.length} file(s), parsed ${data.total_records} records
-        </div>
-      `);
-      
+      showAlert(`Successfully uploaded ${data.uploaded_files.length} file(s)`, 'success');
       selectedFiles = [];
       updateFileList();
       
-      // Switch to data view
       showDataSection();
       await loadMetadata();
       await loadData();
     } else {
-      $('#uploadStatus').html(`
-        <div class="alert alert-danger">
-          <i class="bi bi-exclamation-triangle me-2"></i>
-          ${data.error || 'Upload failed'}
-        </div>
-      `);
+      showAlert(data.error || 'Upload failed', 'danger');
     }
   } catch (e) {
-    console.error('Upload error:', e);
-    $('#uploadStatus').html(`
-      <div class="alert alert-danger">
-        <i class="bi bi-exclamation-triangle me-2"></i>
-        Upload failed: ${e.message}
-      </div>
-    `);
+    showAlert('Upload failed: ' + e.message, 'danger');
   } finally {
-    $('#loadingOverlay').addClass('hidden');
+    hideLoading();
   }
 }
 
 function renderExistingFiles(files) {
-  const container = $('#existingFilesList');
+  const container = $('#existingFiles');
   container.empty();
   
   files.forEach(file => {
     const size = (file.size / 1024).toFixed(1);
     container.append(`
-      <div class="file-item">
-        <span>
-          <i class="bi bi-file-earmark-check me-2 text-success"></i>
-          ${file.name} <small class="text-muted">(${size} KB)</small>
-        </span>
+      <div class="file-list-item">
+        <div class="file-icon">
+          <i class="bi bi-file-earmark-check"></i>
+        </div>
+        <div class="file-info">
+          <div class="file-name">${file.name}</div>
+          <div class="file-size">${size} KB</div>
+        </div>
       </div>
     `);
   });
   
-  $('#existingFiles').show();
+  $('#existingFilesSection').show();
 }
 
-// ── Load metadata (filter options) ────────────────────────────────────
+// Metadata
 async function loadMetadata() {
   const res = await fetch('/api/metadata');
   metadata = await res.json();
 
-  // Populate dropdowns
-  fillSelect('#filterSource',   metadata.file_sources);
+  fillSelect('#filterSource', metadata.file_sources);
   fillSelect('#filterWorkload', metadata.workloads);
   fillSelect('#filterSvcClass', metadata.service_classes);
 
-  // Date pickers
   if (metadata.date_range.min) {
     $('#filterStart').val(metadata.date_range.min.substring(0, 16));
   }
@@ -267,27 +255,20 @@ async function loadMetadata() {
     $('#filterEnd').val(metadata.date_range.max.substring(0, 16));
   }
 
-  // Stats
   $('#statRecords').text(metadata.total_records.toLocaleString());
   $('#statFiles').text(metadata.parse_stats.files_parsed);
   $('#statClasses').text(metadata.service_classes.length);
-  $('#headerBadge').text(metadata.total_records + ' records');
+  $('#headerBadge').text(metadata.total_records.toLocaleString() + ' records');
 }
 
 function fillSelect(sel, items) {
-  // Save current selection
   const currentVal = $(sel).val();
-  
   $(sel).find('option:not(:first)').remove();
   items.forEach(v => $(sel).append(`<option value="${v}">${v}</option>`));
-  
-  // Restore selection if still valid
-  if (currentVal && items.includes(currentVal)) {
-    $(sel).val(currentVal);
-  }
+  if (currentVal && items.includes(currentVal)) $(sel).val(currentVal);
 }
 
-// ── Load data (with optional filters) ─────────────────────────────────
+// Load data
 async function loadData(filters) {
   const params = new URLSearchParams();
   if (filters) {
@@ -302,56 +283,53 @@ async function loadData(filters) {
   renderChart();
 }
 
-// ── DataTable ─────────────────────────────────────────────────────────
+// Render table
 function renderTable() {
   if (dataTable) { dataTable.destroy(); $('#dataTable tbody').empty(); }
 
   const tbody = $('#dataTable tbody');
   currentData.forEach(r => {
-    tbody.append(`<tr>
-      <td>${r.timestamp}</td>
-      <td><span class="badge bg-primary bg-opacity-75">${r.service_class}</span></td>
-      <td>${r.workload}</td>
-      <td>${r.period}</td>
-      <td class="fw-semibold">${r.appl_cp_total.toFixed(2)}</td>
-      <td><small class="text-muted">${r.file_source}</small></td>
-    </tr>`);
+    tbody.append(`
+      <tr>
+        <td>${r.timestamp}</td>
+        <td><span class="badge bg-primary">${r.service_class}</span></td>
+        <td>${r.workload}</td>
+        <td>${r.period}</td>
+        <td class="fw-bold">${r.appl_cp_total.toFixed(2)}%</td>
+        <td><small class="text-muted">${r.file_source}</small></td>
+      </tr>
+    `);
   });
 
   dataTable = $('#dataTable').DataTable({
     order: [[0, 'asc']],
     pageLength: 25,
     lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
-    language: { search: 'Search:' },
+    language: { search: 'Search:', lengthMenu: 'Show _MENU_ entries' },
   });
 }
 
-// ── Chart.js ──────────────────────────────────────────────────────────
+// Render chart
 function renderChart() {
-  // Group by service_class (+ period suffix if > 1)
   const grouped = {};
   currentData.forEach(r => {
-    const key = r.period > 1
-      ? `${r.service_class} P${r.period}`
-      : r.service_class;
+    const key = r.period > 1 ? `${r.service_class} P${r.period}` : r.service_class;
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push({ x: r.datetime_iso, y: r.appl_cp_total });
   });
 
-  // Sort each series chronologically
   Object.values(grouped).forEach(arr => arr.sort((a, b) => a.x.localeCompare(b.x)));
 
-  // Build datasets
   const keys = Object.keys(grouped).sort();
   const datasets = keys.map((key, i) => ({
     label: key,
     data: grouped[key],
     borderColor: colour(i),
-    backgroundColor: colour(i) + '22',
+    backgroundColor: colour(i) + '20',
     borderWidth: 2,
-    pointRadius: 2.5,
-    pointHoverRadius: 5,
-    tension: 0.25,
+    pointRadius: 3,
+    pointHoverRadius: 6,
+    tension: 0.3,
     fill: false,
   }));
 
@@ -368,16 +346,15 @@ function renderChart() {
       plugins: {
         legend: {
           position: 'top',
-          labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } },
+          labels: { usePointStyle: true, boxWidth: 10, padding: 15, font: { size: 12 } },
         },
         tooltip: {
           callbacks: {
             title: ctx => {
               if (!ctx.length) return '';
-              const d = new Date(ctx[0].parsed.x);
-              return d.toLocaleString();
+              return new Date(ctx[0].parsed.x).toLocaleString();
             },
-            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} %`,
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`,
           },
         },
       },
@@ -385,48 +362,66 @@ function renderChart() {
         x: {
           type: 'time',
           time: { unit: 'hour', tooltipFormat: 'MMM dd, yyyy HH:mm' },
-          title: { display: true, text: 'Time', font: { weight: 'bold' } },
-          grid: { color: 'rgba(0,0,0,.05)' },
+          grid: { color: 'rgba(0,0,0,0.05)' },
         },
         y: {
           beginAtZero: true,
-          title: { display: true, text: 'APPL % CP Total', font: { weight: 'bold' } },
-          grid: { color: 'rgba(0,0,0,.06)' },
+          title: { display: true, text: 'APPL % CP' },
+          grid: { color: 'rgba(0,0,0,0.05)' },
         },
       },
     },
   });
 }
 
-// ── Events ────────────────────────────────────────────────────────────
+// Events
 function wireEvents() {
-  $('#btnApply').on('click', () => {
-    loadData(getFilters());
-  });
-
+  $('#btnApply').on('click', () => loadData(getFilters()));
   $('#btnReset').on('click', () => {
-    $('#filterSource').val('');
-    $('#filterWorkload').val('');
-    $('#filterSvcClass').val('');
+    $('#filterSource, #filterWorkload, #filterSvcClass').val('');
     if (metadata.date_range.min) $('#filterStart').val(metadata.date_range.min.substring(0, 16));
     if (metadata.date_range.max) $('#filterEnd').val(metadata.date_range.max.substring(0, 16));
     loadData();
   });
-
   $('#btnExport').on('click', () => {
     const params = new URLSearchParams();
-    const f = getFilters();
-    Object.entries(f).forEach(([k, v]) => { if (v) params.set(k, v); });
+    Object.entries(getFilters()).forEach(([k, v]) => { if (v) params.set(k, v); });
     window.location.href = '/api/export/csv?' + params;
   });
 }
 
 function getFilters() {
   return {
-    file_source:    $('#filterSource').val(),
-    workload:       $('#filterWorkload').val(),
-    service_class:  $('#filterSvcClass').val(),
-    start_date:     $('#filterStart').val() ? new Date($('#filterStart').val()).toISOString() : '',
-    end_date:       $('#filterEnd').val()   ? new Date($('#filterEnd').val()).toISOString()   : '',
+    file_source: $('#filterSource').val(),
+    workload: $('#filterWorkload').val(),
+    service_class: $('#filterSvcClass').val(),
+    start_date: $('#filterStart').val() ? new Date($('#filterStart').val()).toISOString() : '',
+    end_date: $('#filterEnd').val() ? new Date($('#filterEnd').val()).toISOString() : '',
   };
+}
+
+// Utilities
+function showLoading(text) {
+  $('#loadingText').text(text || 'Loading...');
+  $('#loadingOverlay').removeClass('hidden');
+}
+
+function hideLoading() {
+  $('#loadingOverlay').addClass('hidden');
+}
+
+function showAlert(message, type) {
+  const alertClass = type === 'success' ? 'alert-success' : 
+                     type === 'warning' ? 'alert-warning' : 'alert-danger';
+  const icon = type === 'success' ? 'check-circle' : 
+               type === 'warning' ? 'exclamation-triangle' : 'exclamation-circle';
+  
+  $('#uploadStatus').html(`
+    <div class="alert-modern ${alertClass}">
+      <i class="bi bi-${icon}"></i>
+      <span>${message}</span>
+    </div>
+  `);
+  
+  setTimeout(() => $('#uploadStatus').empty(), 5000);
 }
