@@ -655,11 +655,18 @@ async function loadMetadata() {
     fillSelect('filterWorkload', metadata.workloads);
     fillSelect('filterSvcClass', metadata.service_classes);
 
+    // Also populate mobile filter selects
+    fillSelect('mobileFilterSource', metadata.file_sources);
+    fillSelect('mobileFilterWorkload', metadata.workloads);
+    fillSelect('mobileFilterSvcClass', metadata.service_classes);
+
     if (metadata.date_range.min) {
       document.getElementById('filterStart').value = metadata.date_range.min.substring(0, 16);
+      document.getElementById('mobileFilterStart').value = metadata.date_range.min.substring(0, 16);
     }
     if (metadata.date_range.max) {
       document.getElementById('filterEnd').value = metadata.date_range.max.substring(0, 16);
+      document.getElementById('mobileFilterEnd').value = metadata.date_range.max.substring(0, 16);
     }
 
     document.getElementById('statRecords').textContent = formatNumber(metadata.total_records);
