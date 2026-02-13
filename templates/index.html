@@ -3,536 +3,332 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Analyze z/OS RMF Workload Activity reports for FISC policy TFP analysis">
+  <meta name="theme-color" content="#0a0a0f">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <title>RMF Workload Activity Analyzer</title>
 
-  <!-- Bootstrap 5 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Fonts: JetBrains Mono (display/mono) + Space Grotesk (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <!-- Bootstrap Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <!-- DataTables Bootstrap 5 -->
+
+  <!-- DataTables -->
   <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 
-  <style>
-    :root {
-      --primary: #3b82f6;
-      --primary-dark: #2563eb;
-      --secondary: #64748b;
-      --success: #10b981;
-      --danger: #ef4444;
-      --warning: #f59e0b;
-      --dark: #1e293b;
-      --light: #f8fafc;
-      --glass-bg: rgba(255, 255, 255, 0.95);
-      --glass-border: rgba(255, 255, 255, 0.3);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      background-attachment: fixed;
-      min-height: 100vh;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #334155;
-      line-height: 1.6;
-    }
-
-    /* --- Navbar --- */
-    .navbar {
-      background: rgba(30, 41, 59, 0.95) !important;
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    }
-    .navbar-brand {
-      font-weight: 700;
-      font-size: 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    /* --- Cards --- */
-    .card-modern {
-      background: var(--glass-bg);
-      border-radius: 20px;
-      border: 1px solid var(--glass-border);
-      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-      backdrop-filter: blur(20px);
-      transition: all 0.3s ease;
-    }
-    .card-modern:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-    }
-
-    /* --- Upload Zone --- */
-    .upload-zone {
-      border: 3px dashed #cbd5e1;
-      border-radius: 20px;
-      padding: 3rem 2rem;
-      text-align: center;
-      background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(248,250,252,0.9));
-      transition: all 0.3s ease;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-    }
-    .upload-zone::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(118,75,162,0.1));
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .upload-zone:hover, .upload-zone.dragover {
-      border-color: var(--primary);
-      transform: scale(1.02);
-    }
-    .upload-zone:hover::before, .upload-zone.dragover::before {
-      opacity: 1;
-    }
-    .upload-zone i {
-      font-size: 4rem;
-      color: var(--primary);
-      margin-bottom: 1rem;
-      position: relative;
-      z-index: 1;
-    }
-    .upload-zone h5 {
-      font-weight: 600;
-      color: var(--dark);
-      margin-bottom: 0.5rem;
-      position: relative;
-      z-index: 1;
-    }
-    .upload-zone p {
-      color: var(--secondary);
-      margin-bottom: 1.5rem;
-      position: relative;
-      z-index: 1;
-    }
-
-    /* --- Buttons --- */
-    .btn-primary-gradient {
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      border: none;
-      border-radius: 12px;
-      padding: 0.75rem 1.5rem;
-      font-weight: 600;
-      color: white;
-      transition: all 0.3s;
-      box-shadow: 0 4px 15px rgba(59,130,246,0.3);
-    }
-    .btn-primary-gradient:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(59,130,246,0.4);
-      color: white;
-    }
-    .btn-success-gradient {
-      background: linear-gradient(135deg, #10b981, #059669);
-      border: none;
-      border-radius: 12px;
-      padding: 0.75rem 1.5rem;
-      font-weight: 600;
-      color: white;
-      box-shadow: 0 4px 15px rgba(16,185,129,0.3);
-    }
-    .btn-success-gradient:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(16,185,129,0.4);
-      color: white;
-    }
-
-    /* --- File List --- */
-    .file-list-item {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      background: white;
-      border-radius: 12px;
-      margin-bottom: 0.75rem;
-      border: 1px solid #e2e8f0;
-      transition: all 0.2s;
-    }
-    .file-list-item:hover {
-      border-color: var(--primary);
-      box-shadow: 0 4px 12px rgba(59,130,246,0.1);
-    }
-    .file-icon {
-      width: 48px;
-      height: 48px;
-      background: linear-gradient(135deg, #dbeafe, #ede9fe);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5rem;
-      color: var(--primary);
-    }
-    .file-info {
-      flex: 1;
-    }
-    .file-name {
-      font-weight: 600;
-      color: var(--dark);
-      margin-bottom: 0.25rem;
-    }
-    .file-size {
-      font-size: 0.875rem;
-      color: var(--secondary);
-    }
-
-    /* --- Stats --- */
-    .stat-card {
-      background: white;
-      border-radius: 16px;
-      padding: 1.5rem;
-      border: 1px solid #e2e8f0;
-      transition: all 0.3s;
-    }
-    .stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.1);
-    }
-    .stat-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5rem;
-      margin-bottom: 1rem;
-    }
-    .stat-icon.blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
-    .stat-icon.pink { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #db2777; }
-    .stat-icon.green { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
-    .stat-icon.purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #7c3aed; }
-    .stat-value {
-      font-size: 2rem;
-      font-weight: 700;
-      color: var(--dark);
-      line-height: 1;
-    }
-    .stat-label {
-      font-size: 0.875rem;
-      color: var(--secondary);
-      margin-top: 0.5rem;
-    }
-
-    /* --- Filters --- */
-    .filter-section {
-      background: white;
-      border-radius: 16px;
-      padding: 1.5rem;
-      border: 1px solid #e2e8f0;
-    }
-    .filter-section .form-label {
-      font-weight: 600;
-      font-size: 0.875rem;
-      color: var(--dark);
-      margin-bottom: 0.5rem;
-    }
-    .filter-section .form-select,
-    .filter-section .form-control {
-      border-radius: 10px;
-      border: 1px solid #e2e8f0;
-      padding: 0.625rem 0.875rem;
-      font-size: 0.875rem;
-    }
-    .filter-section .form-select:focus,
-    .filter-section .form-control:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-    }
-
-    /* --- Loading --- */
-    .loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(30,41,59,0.9);
-      backdrop-filter: blur(10px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: all 0.3s;
-    }
-    .loading-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .spinner-modern {
-      width: 64px;
-      height: 64px;
-      border: 4px solid rgba(255,255,255,0.1);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* --- Chart --- */
-    .chart-container {
-      background: white;
-      border-radius: 16px;
-      padding: 1.5rem;
-      border: 1px solid #e2e8f0;
-    }
-    .chart-wrapper {
-      position: relative;
-      height: 400px;
-    }
-
-    /* --- Table --- */
-    .table-container {
-      background: white;
-      border-radius: 16px;
-      padding: 1.5rem;
-      border: 1px solid #e2e8f0;
-    }
-    .dataTables_wrapper .dataTables_length select,
-    .dataTables_wrapper .dataTables_filter input {
-      border-radius: 8px;
-      border: 1px solid #e2e8f0;
-      padding: 0.375rem 0.75rem;
-    }
-
-    /* --- Empty State --- */
-    .empty-state {
-      text-align: center;
-      padding: 4rem 2rem;
-    }
-    .empty-state i {
-      font-size: 5rem;
-      color: #cbd5e1;
-      margin-bottom: 1.5rem;
-    }
-    .empty-state h4 {
-      color: var(--dark);
-      margin-bottom: 0.5rem;
-    }
-    .empty-state p {
-      color: var(--secondary);
-    }
-
-    /* --- Alert --- */
-    .alert-modern {
-      border-radius: 12px;
-      border: none;
-      padding: 1rem 1.25rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .alert-modern.alert-success {
-      background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-      color: #065f46;
-    }
-    .alert-modern.alert-danger {
-      background: linear-gradient(135deg, #fee2e2, #fecaca);
-      color: #991b1b;
-    }
-
-    /* --- Animation --- */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .fade-in {
-      animation: fadeIn 0.5s ease;
-    }
-  </style>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-<!-- Loading -->
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Loading Overlay -->
 <div class="loading-overlay hidden" id="loadingOverlay">
-  <div class="text-center text-white">
-    <div class="spinner-modern mb-4"></div>
-    <div class="fw-semibold fs-5" id="loadingText">Loading...</div>
+  <div class="text-center">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">Loading...</div>
+    <div class="loading-progress">
+      <div class="loading-progress-bar"></div>
+    </div>
   </div>
 </div>
 
 <!-- Navbar -->
-<nav class="navbar navbar-dark px-4">
-  <div class="container-fluid">
-    <span class="navbar-brand">
-      <i class="bi bi-cpu"></i>
-      z/OS RMF Workload Analyzer
-    </span>
-    <span class="badge bg-primary fs-6" id="headerBadge">-- records</span>
+<nav class="navbar-modern">
+  <div class="navbar-content">
+    <a href="#" class="navbar-brand">
+      <svg class="brand-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="28" height="28" rx="4" stroke="#33ff66" stroke-width="1" opacity="0.4"/>
+        <path d="M8 22V14" stroke="#33ff66" stroke-width="2" stroke-linecap="round"/>
+        <path d="M13 22V10" stroke="#33ff66" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+        <path d="M18 22V16" stroke="#33ff66" stroke-width="2" stroke-linecap="round"/>
+        <path d="M23 22V8" stroke="#ffb800" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="8" cy="14" r="1.5" fill="#33ff66"/>
+        <circle cx="13" cy="10" r="1.5" fill="#33ff66" opacity="0.7"/>
+        <circle cx="18" cy="16" r="1.5" fill="#33ff66"/>
+        <circle cx="23" cy="8" r="1.5" fill="#ffb800"/>
+      </svg>
+      <span data-i18n="brand">z/OS RMF Workload Analyzer</span>
+    </a>
+    <div class="d-flex align-center gap-2">
+      <span class="navbar-badge" id="headerBadge">-- records</span>
+      <!-- Language Toggle -->
+      <button class="lang-toggle" id="btnLangToggle" title="Switch Language" aria-label="Switch language">
+        <span class="lang-toggle-label" id="langLabel">EN</span>
+      </button>
+      <button class="navbar-filter-toggle" id="btnFilterToggle" title="Filters" aria-label="Toggle filters">
+        <i class="bi bi-sliders"></i>
+        <span class="filter-active-dot"></span>
+      </button>
+    </div>
   </div>
 </nav>
 
-<!-- Main Content -->
-<div class="container py-5">
-
-  <!-- Upload Section -->
-  <div id="uploadSection" class="fade-in">
-    <div class="row justify-content-center">
-      <div class="col-lg-8">
-        <div class="card-modern p-4 p-lg-5">
-          <div class="text-center mb-4">
-            <h3 class="fw-bold"><i class="bi bi-cloud-arrow-up me-2"></i>Upload RMF Reports</h3>
-            <p class="text-muted mb-0">Parse and analyze z/OS RMF Workload Activity reports</p>
-          </div>
-
-          <!-- Upload Zone -->
-          <div class="upload-zone mb-4" id="dropZone">
-            <i class="bi bi-file-earmark-text"></i>
-            <h5>Drop your RMF files here</h5>
-            <p>or click to browse files (.txt, .rmf)</p>
-            <input type="file" id="fileInput" multiple accept=".txt,.rmf" hidden>
-            <button class="btn btn-primary-gradient">
-              <i class="bi bi-folder-open me-2"></i>Select Files
-            </button>
-          </div>
-
-          <!-- Selected Files -->
-          <div id="fileListSection" class="mb-4" style="display: none;">
-            <h6 class="fw-bold mb-3">Selected Files</h6>
-            <div id="fileList"></div>
-          </div>
-
-          <!-- Actions -->
-          <div id="uploadActions" style="display: none;">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
-              <button class="btn btn-success-gradient" id="btnUpload">
-                <i class="bi bi-upload me-2"></i>Upload & Parse
-              </button>
-              <button class="btn btn-outline-secondary" id="btnClearFiles">
-                <i class="bi bi-x-lg me-2"></i>Clear
-              </button>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="clearExisting" checked>
-                <label class="form-check-label" for="clearExisting">
-                  Replace existing files
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Status -->
-          <div id="uploadStatus" class="mt-4"></div>
-
-          <!-- Existing Files -->
-          <div id="existingFilesSection" class="mt-4 pt-4 border-top" style="display: none;">
-            <h6 class="fw-bold mb-3"><i class="bi bi-folder-check me-2"></i>Uploaded Files</h6>
-            <div id="existingFiles"></div>
-            <button class="btn btn-outline-danger mt-3" id="btnClearAll">
-              <i class="bi bi-trash me-2"></i>Clear All Files
-            </button>
-          </div>
-
-        </div>
-      </div>
+<!-- Mobile Filter Drawer -->
+<div class="filter-drawer-overlay" id="filterDrawerOverlay"></div>
+<div class="filter-drawer" id="filterDrawer" role="dialog" aria-label="Filters">
+  <div class="filter-drawer-handle" id="filterDrawerHandle"></div>
+  <div class="filter-drawer-content">
+    <div class="filter-drawer-header">
+      <span class="filter-drawer-title">
+        <i class="bi bi-funnel"></i> <span data-i18n="filters">Filters</span>
+      </span>
+      <button class="filter-drawer-close" id="btnFilterDrawerClose" aria-label="Close filters">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="filter-group">
+      <label class="form-label" data-i18n="sourceFile">Source File</label>
+      <select id="mobileFilterSource" class="form-select"></select>
+    </div>
+    <div class="filter-group">
+      <label class="form-label" data-i18n="workload">Workload</label>
+      <select id="mobileFilterWorkload" class="form-select"></select>
+    </div>
+    <div class="filter-group">
+      <label class="form-label" data-i18n="serviceClass">Service Class</label>
+      <select id="mobileFilterSvcClass" class="form-select"></select>
+    </div>
+    <div class="filter-group">
+      <label class="form-label" data-i18n="startDate">Start Date</label>
+      <input type="datetime-local" id="mobileFilterStart" class="form-input">
+    </div>
+    <div class="filter-group">
+      <label class="form-label" data-i18n="endDate">End Date</label>
+      <input type="datetime-local" id="mobileFilterEnd" class="form-input">
+    </div>
+    <div class="filter-drawer-actions">
+      <button class="btn btn-secondary" id="btnMobileReset">
+        <i class="bi bi-arrow-counterclockwise"></i> <span data-i18n="reset">Reset</span>
+      </button>
+      <button class="btn btn-primary" id="btnMobileApply">
+        <i class="bi bi-search"></i> <span data-i18n="apply">Apply</span>
+      </button>
+    </div>
+    <div style="margin-top: var(--space-md);">
+      <button class="btn btn-success w-full" id="btnMobileExport">
+        <i class="bi bi-download"></i> <span data-i18n="exportCsv">Export CSV</span>
+      </button>
+    </div>
+    <div style="margin-top: var(--space-sm);">
+      <button class="btn btn-ghost w-full" id="btnMobileUploadDrawer">
+        <i class="bi bi-plus-circle"></i> <span data-i18n="uploadMore">Upload More Files</span>
+      </button>
     </div>
   </div>
+</div>
 
-  <!-- Data Section -->
-  <div id="dataSection" style="display: none;">
+<!-- Main Content -->
+<main class="main-container">
 
-    <!-- Stats -->
-    <div class="row g-4 mb-4">
-      <div class="col-md-6 col-lg-3">
-        <div class="stat-card">
-          <div class="stat-icon blue"><i class="bi bi-database"></i></div>
-          <div class="stat-value" id="statRecords">--</div>
-          <div class="stat-label">Total Records</div>
+  <!-- Upload Section -->
+  <section id="uploadSection" class="upload-section fade-in">
+    <div class="card">
+      <div class="card-body">
+        <!-- Terminal header -->
+        <div class="system-status" id="systemStatus">
+          <span class="status-dot"></span>
+          <span>RMF PARSER v2.0</span>
+          <span style="color: var(--text-muted);">|</span>
+          <span>READY</span>
+          <span style="color: var(--text-muted);">|</span>
+          <span id="systemClock" style="color: var(--amber);"></span>
         </div>
-      </div>
-      <div class="col-md-6 col-lg-3">
-        <div class="stat-card">
-          <div class="stat-icon pink"><i class="bi bi-funnel"></i></div>
-          <div class="stat-value" id="statFiltered">--</div>
-          <div class="stat-label">Filtered</div>
+
+        <div class="text-center mb-3">
+          <h2 class="card-title" style="justify-content: center;">
+            <i class="bi bi-terminal"></i>
+            <span data-i18n="uploadTitle">Upload RMF Reports</span>
+          </h2>
+          <p class="text-muted" style="font-size: 0.8125rem;" data-i18n="uploadDesc">Parse and analyze z/OS RMF Workload Activity reports</p>
         </div>
-      </div>
-      <div class="col-md-6 col-lg-3">
-        <div class="stat-card">
-          <div class="stat-icon green"><i class="bi bi-files"></i></div>
-          <div class="stat-value" id="statFiles">--</div>
-          <div class="stat-label">Files</div>
+
+        <!-- Back to Dashboard button -->
+        <div id="backToDashboard" class="text-center mb-3" style="display: none;">
+          <button class="btn btn-secondary" id="btnBackToDashboard">
+            <i class="bi bi-arrow-left"></i>
+            <span data-i18n="backToDashboard">Back to Dashboard</span>
+          </button>
         </div>
-      </div>
-      <div class="col-md-6 col-lg-3">
-        <div class="stat-card">
-          <div class="stat-icon purple"><i class="bi bi-layers"></i></div>
-          <div class="stat-value" id="statClasses">--</div>
-          <div class="stat-label">Service Classes</div>
+
+        <!-- Upload Zone -->
+        <div class="upload-zone mb-3" id="dropZone">
+          <div class="upload-zone-icon">
+            <i class="bi bi-cpu"></i>
+          </div>
+          <h3 data-i18n="dropFiles">Drop your RMF files here</h3>
+          <p data-i18n="orBrowse">or click to browse files (.txt, .rmf)</p>
+          <label class="file-input-wrapper" for="fileInput">
+            <input type="file" id="fileInput" class="file-input-native" multiple accept=".txt,.rmf">
+            <span class="btn btn-primary btn-lg file-input-btn" aria-hidden="true">
+              <i class="bi bi-folder2-open"></i>
+              <span data-i18n="selectFiles">Select Files</span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Selected Files -->
+        <div id="fileListSection" class="mb-3" style="display: none;">
+          <h4 style="font-size: 0.8125rem; font-weight: 700; margin-bottom: var(--space-md); font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em;" data-i18n="selectedFiles">Selected Files</h4>
+          <div id="fileList" class="file-list"></div>
+        </div>
+
+        <!-- Actions -->
+        <div id="uploadActions" style="display: none;">
+          <div class="d-flex align-center gap-3 flex-wrap">
+            <button class="btn btn-success btn-lg" id="btnUpload">
+              <i class="bi bi-upload"></i>
+              <span data-i18n="uploadParse">Upload & Parse</span>
+            </button>
+            <button class="btn btn-secondary" id="btnClearFiles">
+              <i class="bi bi-x-lg"></i>
+              <span data-i18n="clear">Clear</span>
+            </button>
+            <label class="d-flex align-center gap-2" style="cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-secondary);">
+              <input type="checkbox" id="clearExisting" checked style="width: 18px; height: 18px; accent-color: var(--phosphor-green);">
+              <span data-i18n="replaceExisting">Replace existing files</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div id="uploadStatus" class="mt-3"></div>
+
+        <!-- Existing Files -->
+        <div id="existingFilesSection" class="mt-3" style="display: none; border-top: 1px solid var(--border-dim); padding-top: var(--space-lg);">
+          <h4 style="font-size: 0.8125rem; font-weight: 700; margin-bottom: var(--space-md); font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em;">
+            <i class="bi bi-folder-check"></i>
+            <span data-i18n="uploadedFiles">Uploaded Files</span>
+          </h4>
+          <div id="existingFiles" class="file-list"></div>
+          <button class="btn btn-danger mt-2" id="btnClearAll">
+            <i class="bi bi-trash"></i>
+            <span data-i18n="clearAll">Clear All Files</span>
+          </button>
         </div>
       </div>
     </div>
+  </section>
 
-    <div class="row g-4">
-      <!-- Filters -->
-      <div class="col-lg-3">
-        <div class="filter-section mb-4">
-          <h6 class="fw-bold mb-3"><i class="bi bi-funnel me-2"></i>Filters</h6>
+  <!-- Data Dashboard -->
+  <section id="dataSection" style="display: none;">
 
-          <div class="mb-3">
-            <label class="form-label">Source File</label>
-            <select id="filterSource" class="form-select">
-              <option value="">All Files</option>
-            </select>
-          </div>
+    <!-- Mobile Upload Button -->
+    <div class="mobile-upload-btn-wrapper" style="margin-bottom: var(--space-md);">
+      <button class="btn btn-primary w-full" id="btnMobileUploadMore" style="min-height: 48px;">
+        <i class="bi bi-cloud-arrow-up"></i>
+        <span data-i18n="uploadNew">Upload New Files</span>
+      </button>
+    </div>
 
-          <div class="mb-3">
-            <label class="form-label">Workload</label>
-            <select id="filterWorkload" class="form-select">
-              <option value="">All Workloads</option>
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Service Class</label>
-            <select id="filterSvcClass" class="form-select">
-              <option value="">All Classes</option>
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Start Date</label>
-            <input type="datetime-local" id="filterStart" class="form-control">
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">End Date</label>
-            <input type="datetime-local" id="filterEnd" class="form-control">
-          </div>
-
-          <div class="d-grid gap-2">
-            <button class="btn btn-primary-gradient" id="btnApply">
-              <i class="bi bi-search me-2"></i>Apply Filters
-            </button>
-            <button class="btn btn-outline-secondary" id="btnReset">
-              <i class="bi bi-arrow-counterclockwise me-2"></i>Reset
-            </button>
-            <button class="btn btn-success-gradient" id="btnExport">
-              <i class="bi bi-download me-2"></i>Export CSV
-            </button>
-            <button class="btn btn-outline-primary" id="btnUploadMore">
-              <i class="bi bi-plus-circle me-2"></i>Upload More
-            </button>
-          </div>
+    <!-- Stats Row -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">
+          <i class="bi bi-database"></i>
         </div>
+        <div class="stat-value" id="statRecords">--</div>
+        <div class="stat-label" data-i18n="totalRecords">Total Records</div>
       </div>
 
-      <!-- Main Content -->
-      <div class="col-lg-9">
+      <div class="stat-card warning">
+        <div class="stat-icon amber">
+          <i class="bi bi-funnel"></i>
+        </div>
+        <div class="stat-value" id="statFiltered">--</div>
+        <div class="stat-label" data-i18n="filtered">Filtered</div>
+      </div>
 
+      <div class="stat-card success">
+        <div class="stat-icon green">
+          <i class="bi bi-files"></i>
+        </div>
+        <div class="stat-value" id="statFiles">--</div>
+        <div class="stat-label" data-i18n="filesParsed">Files Parsed</div>
+      </div>
+
+      <div class="stat-card info">
+        <div class="stat-icon purple">
+          <i class="bi bi-layers"></i>
+        </div>
+        <div class="stat-value" id="statClasses">--</div>
+        <div class="stat-label" data-i18n="serviceClasses">Service Classes</div>
+      </div>
+    </div>
+
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+      <!-- Filters Panel -->
+      <aside class="filters-panel">
+        <h3 class="filters-title">
+          <i class="bi bi-funnel"></i>
+          <span data-i18n="filters">Filters</span>
+        </h3>
+
+        <div class="filter-group">
+          <label class="form-label" data-i18n="sourceFile">Source File</label>
+          <select id="filterSource" class="form-select">
+            <option value="" data-i18n="allFiles">All Files</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="form-label" data-i18n="workload">Workload</label>
+          <select id="filterWorkload" class="form-select">
+            <option value="" data-i18n="allWorkloads">All Workloads</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="form-label" data-i18n="serviceClass">Service Class</label>
+          <select id="filterSvcClass" class="form-select">
+            <option value="" data-i18n="allClasses">All Classes</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="form-label" data-i18n="startDate">Start Date</label>
+          <input type="datetime-local" id="filterStart" class="form-input">
+        </div>
+
+        <div class="filter-group">
+          <label class="form-label" data-i18n="endDate">End Date</label>
+          <input type="datetime-local" id="filterEnd" class="form-input">
+        </div>
+
+        <div class="d-flex flex-column gap-2">
+          <button class="btn btn-primary w-full" id="btnApply">
+            <i class="bi bi-search"></i>
+            <span data-i18n="applyFilters">Apply Filters</span>
+          </button>
+          <button class="btn btn-secondary w-full" id="btnReset">
+            <i class="bi bi-arrow-counterclockwise"></i>
+            <span data-i18n="reset">Reset</span>
+          </button>
+          <button class="btn btn-success w-full" id="btnExport">
+            <i class="bi bi-download"></i>
+            <span data-i18n="exportCsv">Export CSV</span> <kbd class="hide-mobile">Ctrl+E</kbd>
+          </button>
+          <button class="btn btn-ghost w-full" id="btnUploadMore">
+            <i class="bi bi-plus-circle"></i>
+            <span data-i18n="uploadMore">Upload More</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <div>
         <!-- Chart -->
-        <div class="chart-container mb-4">
-          <h6 class="fw-bold mb-3"><i class="bi bi-graph-up me-2"></i>APPL % CP Trend by Service Class</h6>
+        <div class="chart-container mb-3">
+          <h3 class="card-title mb-2">
+            <i class="bi bi-graph-up"></i>
+            <span data-i18n="chartTitle">APPL % CP Trend by Service Class</span>
+          </h3>
           <div class="chart-wrapper">
             <canvas id="cpuChart"></canvas>
           </div>
@@ -540,17 +336,20 @@
 
         <!-- Table -->
         <div class="table-container">
-          <h6 class="fw-bold mb-3"><i class="bi bi-table me-2"></i>Detailed Records</h6>
-          <div class="table-responsive">
-            <table id="dataTable" class="table table-hover w-100">
-              <thead class="table-light">
+          <h3 class="card-title mb-2">
+            <i class="bi bi-table"></i>
+            <span data-i18n="tableTitle">Detailed Records</span>
+          </h3>
+          <div style="overflow-x: auto;">
+            <table id="dataTable" class="data-table">
+              <thead>
                 <tr>
-                  <th>Date-Time</th>
-                  <th>Service Class</th>
-                  <th>Workload</th>
-                  <th>Period</th>
-                  <th>APPL % CP</th>
-                  <th>Source</th>
+                  <th data-i18n="colDateTime">Date-Time</th>
+                  <th data-i18n="colServiceClass">Service Class</th>
+                  <th data-i18n="colWorkload">Workload</th>
+                  <th data-i18n="colPeriod">Period</th>
+                  <th data-i18n="colApplCp">APPL % CP</th>
+                  <th data-i18n="colSource">Source</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -558,15 +357,28 @@
           </div>
         </div>
 
+        <!-- Mobile Card View -->
+        <div class="mobile-cards-container" id="mobileCardsContainer">
+          <h3 class="card-title mb-2">
+            <i class="bi bi-table"></i>
+            <span data-i18n="tableTitle">Detailed Records</span>
+          </h3>
+          <input type="text" class="mobile-cards-search" id="mobileCardsSearch" data-i18n="dtSearchPlaceholder" placeholder="Search records...">
+          <div id="mobileCardsContent"></div>
+          <div class="mobile-cards-pagination" id="mobileCardsPagination"></div>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
-</div>
+</main>
 
-<!-- JS Libraries -->
+<footer style="text-align: center; padding: var(--space-lg); color: var(--text-muted); font-size: 0.6875rem; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;">
+  <span data-i18n="footer">RMF Workload Activity Analyzer &mdash; z/OS Performance Analytics</span>
+</footer>
+
+<!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
