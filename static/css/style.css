@@ -132,7 +132,10 @@ body {
 body::before {
   content: '';
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: repeating-linear-gradient(
     0deg,
     transparent,
@@ -141,17 +144,20 @@ body::before {
     rgba(0, 0, 0, 0.03) 4px
   );
   pointer-events: none;
-  z-index: 99999;
+  z-index: 9990;
 }
 
 /* Subtle CRT vignette */
 body::after {
   content: '';
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
   pointer-events: none;
-  z-index: 99998;
+  z-index: 9989;
 }
 
 /* === Navbar === */
@@ -597,7 +603,10 @@ body::after {
 
 .file-input-native {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
   height: 100%;
   opacity: 0;
@@ -606,7 +615,6 @@ body::after {
   /* Critical for mobile: suppress iOS tap delay and highlight */
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  /* Don't use font-size hack; use inset: 0 + 100% sizing instead */
   font-size: inherit;
   /* Ensure the input element itself is the touch target */
   -webkit-appearance: none;
@@ -1089,19 +1097,24 @@ kbd {
 /* === Loading Overlay === */
 .loading-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(10, 10, 15, 0.92);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  transition: opacity var(--transition-base);
+  transition: opacity var(--transition-base), visibility var(--transition-base);
 }
 
 .loading-overlay.hidden {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .spinner {
@@ -1233,16 +1246,21 @@ kbd {
 .filter-drawer-overlay {
   display: none;
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.6);
   z-index: 2000;
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--transition-slow);
 }
 
 .filter-drawer-overlay.visible {
   display: block;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .filter-drawer {
@@ -1262,11 +1280,13 @@ kbd {
   transform: translateY(100%);
   transition: transform var(--transition-slow) cubic-bezier(0.32, 0.72, 0, 1);
   padding-bottom: var(--safe-bottom);
+  pointer-events: none;
 }
 
 .filter-drawer.visible {
   display: block;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .filter-drawer-handle {
@@ -1937,5 +1957,18 @@ kbd {
     box-shadow: none;
     border: 1px solid #ddd;
     break-inside: avoid;
+  }
+}
+
+/* === Safari-specific fixes === */
+/* Safari can fail to honor pointer-events:none on body pseudo-elements,
+   causing the CRT scanline/vignette overlays to intercept all clicks.
+   This ensures the overlays are truly non-interactive. */
+@supports (-webkit-touch-callout: none) {
+  body::before,
+  body::after {
+    pointer-events: none !important;
+    -webkit-user-select: none;
+    user-select: none;
   }
 }

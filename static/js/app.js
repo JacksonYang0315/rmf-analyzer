@@ -1154,6 +1154,28 @@ function wireEvents() {
     updateFileList();
   });
 
+  // Mobile export button
+  const btnMobileExport = document.getElementById('btnMobileExport');
+  if (btnMobileExport) {
+    btnMobileExport.addEventListener('click', exportCSV);
+  }
+
+  // Mobile upload drawer button
+  const btnMobileUploadDrawer = document.getElementById('btnMobileUploadDrawer');
+  if (btnMobileUploadDrawer) {
+    btnMobileUploadDrawer.addEventListener('click', () => {
+      showUploadSection();
+      selectedFiles = [];
+      updateFileList();
+      // Close the filter drawer if open
+      const fd = document.getElementById('filterDrawer');
+      const fdo = document.getElementById('filterDrawerOverlay');
+      if (fd) fd.classList.remove('visible');
+      if (fdo) fdo.classList.remove('visible');
+      document.body.style.overflow = '';
+    });
+  }
+
   // Mobile filter drawer functionality
   const filterDrawer = document.getElementById('filterDrawer');
   const filterDrawerOverlay = document.getElementById('filterDrawerOverlay');
