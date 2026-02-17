@@ -13,6 +13,10 @@ build/
 # Uploads (user files)
 uploads/
 
+# RMF Reports (user data - never commit)
+*.txt
+*.rmf
+
 # IDE
 .vscode/
 .idea/
