@@ -56,6 +56,7 @@ const I18N = {
     colSource: 'Source',
     // Footer
     footer: 'RMF Workload Activity Analyzer &mdash; z/OS Performance Analytics',
+    contributors: 'Contributed by Jackson Yang, Anderson Chung, Yvette Wang, Carson Tsai',
     // DataTables
     dtSearch: '',
     dtSearchPlaceholder: 'Search records...',
@@ -91,7 +92,7 @@ const I18N = {
   zh: {
     brand: 'z/OS RMF 工作負載分析器',
     uploadTitle: '上傳 RMF 報告',
-    uploadDesc: '解析並分析 z/OS RMF 工作負載活動報告（所有資料僅存於瀏覽器中）',
+    uploadDesc: '解析並分析 z/OS RMF 工作負載活動報告',
     backToDashboard: '返回儀表板',
     dropFiles: '將 RMF 檔案拖曳至此',
     orBrowse: '或點擊瀏覽檔案 (.txt)',
@@ -130,6 +131,7 @@ const I18N = {
     colApplCp: 'APPL % CP',
     colSource: '來源',
     footer: 'RMF 工作負載活動分析器 &mdash; z/OS 效能分析',
+    contributors: '貢獻者：Jackson Yang、Anderson Chung、Yvette Wang、Carson Tsai',
     dtSearch: '',
     dtSearchPlaceholder: '搜尋記錄...',
     dtLengthMenu: '顯示 _MENU_',
