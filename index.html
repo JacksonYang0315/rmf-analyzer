@@ -59,7 +59,7 @@
       <span class="navbar-badge" id="headerBadge">-- records</span>
       <!-- Language Toggle -->
       <button class="lang-toggle" id="btnLangToggle" title="Switch Language" aria-label="Switch language">
-        <span class="lang-toggle-label" id="langLabel">EN</span>
+        <span class="lang-toggle-label" id="langLabel">中</span>
       </button>
       <button class="navbar-filter-toggle" id="btnFilterToggle" title="Filters" aria-label="Toggle filters">
         <i class="bi bi-sliders"></i>
@@ -178,6 +178,12 @@
           </label>
         </div>
 
+        <!-- Client-side privacy notice -->
+        <div class="text-center mb-3" style="font-size: 0.7rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; opacity: 0.7;">
+          <i class="bi bi-shield-lock"></i>
+          <span data-i18n="clientOnlyNotice">Files are processed locally in your browser and are never uploaded to any server.</span>
+        </div>
+
         <!-- Selected Files -->
         <div id="fileListSection" class="mb-3" style="display: none;">
           <h4 style="font-size: 0.8125rem; font-weight: 700; margin-bottom: var(--space-md); font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em;" data-i18n="selectedFiles">Selected Files</h4>
@@ -195,10 +201,6 @@
               <i class="bi bi-x-lg"></i>
               <span data-i18n="clear">Clear</span>
             </button>
-            <label class="d-flex align-center gap-2" style="cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-secondary);">
-              <input type="checkbox" id="clearExisting" checked style="width: 18px; height: 18px; accent-color: var(--phosphor-green);">
-              <span data-i18n="replaceExisting">Replace existing files</span>
-            </label>
           </div>
         </div>
 

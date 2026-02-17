@@ -21,7 +21,6 @@ const I18N = {
     selectedFiles: 'Selected Files',
     uploadParse: 'Upload & Parse',
     clear: 'Clear',
-    replaceExisting: 'Replace existing files',
     uploadedFiles: 'Uploaded Files',
     clearAll: 'Clear All Files',
     uploadNew: 'Upload New Files',
@@ -79,6 +78,8 @@ const I18N = {
     toastMetaFail: 'Failed to load metadata',
     toastCheckFail: 'Failed to check existing files. Please refresh.',
     toastClearFail: 'Error clearing data',
+    // Privacy notice
+    clientOnlyNotice: 'Files are processed locally in your browser and are never uploaded to any server.',
     // Loading
     loadingData: 'Loading data...',
     loadingUpload: 'Parsing files in browser...',
@@ -98,7 +99,6 @@ const I18N = {
     selectedFiles: '已選檔案',
     uploadParse: '解析檔案',
     clear: '清除',
-    replaceExisting: '取代現有檔案',
     uploadedFiles: '已載入檔案',
     clearAll: '清除所有資料',
     uploadNew: '上傳新檔案',
@@ -150,6 +150,7 @@ const I18N = {
     toastMetaFail: '載入元資料失敗',
     toastCheckFail: '檢查現有檔案失敗，請重新整理頁面。',
     toastClearFail: '清除資料時發生錯誤',
+    clientOnlyNotice: '檔案僅於本機瀏覽器中處理，不會上傳至任何伺服器。',
     loadingData: '載入資料中...',
     loadingUpload: '於瀏覽器中解析檔案...',
     loadingClear: '清除資料中...',
@@ -187,7 +188,7 @@ function applyI18n() {
     }
   });
   document.documentElement.lang = currentLang === 'zh' ? 'zh-TW' : 'en';
-  document.getElementById('langLabel').textContent = currentLang === 'en' ? 'EN' : '中';
+  document.getElementById('langLabel').textContent = currentLang === 'en' ? '中' : 'EN';
   // Re-render table if data exists to update DataTables language
   if (currentData.length > 0) {
     renderTable();
@@ -515,12 +516,7 @@ async function uploadAndParseFiles() {
   showLoading(t('loadingUpload'));
 
   try {
-    // Check if user wants to replace existing data
-    const clearFirst = document.getElementById('clearExisting').checked;
-    if (clearFirst) {
-      allRecords = [];
-      uploadedFileInfos = [];
-    }
+    // Client-side only: new files are always merged with existing data
 
     // Parse all files in browser using parser.js
     const { allRecords: newRecords, stats } = await parseAllFiles(selectedFiles);
