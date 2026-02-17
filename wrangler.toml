@@ -1,0 +1,11 @@
+name = "rmf-analyzer"
+main = "worker.js"
+compatibility_date = "2026-02-17"
+
+# 自定義域名路由
+[[routes]]
+pattern = "jacksonyang.dev/z/rmf-analyzer/*"
+custom_domain = true
+
+[vars]
+GITHUB_PAGES_URL = "https://jacksonyang0315.github.io/rmf-analyzer"

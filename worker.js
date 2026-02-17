@@ -1,11 +1,11 @@
 // Cloudflare Worker: Reverse proxy for GitHub Pages with subpath
 // Routes: jacksonyang.dev/z/rmf-analyzer/* -> github pages
 
-const GITHUB_PAGES_URL = "https://jacksonyang0315.github.io/rmf-analyzer";
-const SUBPATH = "/z/rmf-analyzer";
-
 export default {
   async fetch(request, env, ctx) {
+    const GITHUB_PAGES_URL = env.GITHUB_PAGES_URL || "https://jacksonyang0315.github.io/rmf-analyzer";
+    const SUBPATH = "/z/rmf-analyzer";
+    
     const url = new URL(request.url);
     
     // Only handle requests under /z/rmf-analyzer
