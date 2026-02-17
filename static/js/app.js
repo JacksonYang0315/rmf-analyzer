@@ -16,7 +16,7 @@ const I18N = {
     uploadDesc: 'Parse and analyze z/OS RMF Workload Activity reports',
     backToDashboard: 'Back to Dashboard',
     dropFiles: 'Drop your RMF files here',
-    orBrowse: 'or click to browse files (.txt, .rmf)',
+    orBrowse: 'or click to browse files (.txt)',
     selectFiles: 'Select Files',
     selectedFiles: 'Selected Files',
     uploadParse: 'Upload & Parse',
@@ -71,7 +71,7 @@ const I18N = {
     toastUploadSuccess: 'Successfully parsed {0} file(s) in {1}s',
     toastClearConfirm: 'Are you sure you want to clear all data?',
     toastCleared: 'All data cleared',
-    toastOnlyTxtRmf: 'Only .txt and .rmf files are allowed',
+    toastOnlyTxtRmf: 'Only .txt files are allowed',
     toastSelectFiles: 'Please select files to upload',
     toastSizeLimit: 'Total file size exceeds 50MB limit',
     toastUploadFail: 'Parse failed',
@@ -93,7 +93,7 @@ const I18N = {
     uploadDesc: '解析並分析 z/OS RMF 工作負載活動報告（所有資料僅存於瀏覽器中）',
     backToDashboard: '返回儀表板',
     dropFiles: '將 RMF 檔案拖曳至此',
-    orBrowse: '或點擊瀏覽檔案 (.txt, .rmf)',
+    orBrowse: '或點擊瀏覽檔案 (.txt)',
     selectFiles: '選擇檔案',
     selectedFiles: '已選檔案',
     uploadParse: '解析檔案',
@@ -142,7 +142,7 @@ const I18N = {
     toastUploadSuccess: '成功解析 {0} 個檔案，耗時 {1} 秒',
     toastClearConfirm: '確定要清除所有資料嗎？',
     toastCleared: '所有資料已清除',
-    toastOnlyTxtRmf: '僅允許 .txt 和 .rmf 檔案',
+    toastOnlyTxtRmf: '僅允許 .txt 檔案',
     toastSelectFiles: '請選擇要上傳的檔案',
     toastSizeLimit: '檔案總大小超過 50MB 限制',
     toastUploadFail: '解析失敗',
@@ -425,7 +425,7 @@ function wireUploadEvents() {
 
 function handleFiles(files) {
   const validFiles = Array.from(files).filter(file =>
-    file.name.endsWith('.txt') || file.name.endsWith('.rmf')
+    file.name.endsWith('.txt')
   );
 
   if (validFiles.length !== files.length) {

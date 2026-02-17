@@ -15,7 +15,6 @@ uploads/
 
 # RMF Reports (user data - never commit)
 *.txt
-*.rmf
 
 # IDE
 .vscode/
