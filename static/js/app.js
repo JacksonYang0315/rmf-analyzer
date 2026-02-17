@@ -1,7 +1,7 @@
 /**
  * RMF Workload Activity Analyzer - Frontend
- * Optimized: vanilla JS (no jQuery except DataTables), AbortController,
- * toast notifications, keyboard shortcuts, improved chart defaults, i18n
+ * Fully client-side: all parsing and data stays in browser memory.
+ * No server required - can be hosted on GitHub Pages or any static host.
  */
 
 // ============================================================
@@ -68,21 +68,21 @@ const I18N = {
     dtNext: '\u203a',
     dtPrevious: '\u2039',
     // Toasts
-    toastUploadSuccess: 'Successfully uploaded {0} file(s) in {1}s',
-    toastClearConfirm: 'Are you sure you want to clear all uploaded files?',
-    toastCleared: 'All files cleared',
+    toastUploadSuccess: 'Successfully parsed {0} file(s) in {1}s',
+    toastClearConfirm: 'Are you sure you want to clear all data?',
+    toastCleared: 'All data cleared',
     toastOnlyTxtRmf: 'Only .txt and .rmf files are allowed',
     toastSelectFiles: 'Please select files to upload',
     toastSizeLimit: 'Total file size exceeds 50MB limit',
-    toastUploadFail: 'Upload failed',
+    toastUploadFail: 'Parse failed',
     toastLoadFail: 'Failed to load data',
     toastMetaFail: 'Failed to load metadata',
     toastCheckFail: 'Failed to check existing files. Please refresh.',
-    toastClearFail: 'Error clearing files',
+    toastClearFail: 'Error clearing data',
     // Loading
     loadingData: 'Loading data...',
-    loadingUpload: 'Uploading and parsing files...',
-    loadingClear: 'Clearing files...',
+    loadingUpload: 'Parsing files in browser...',
+    loadingClear: 'Clearing data...',
     loadingDefault: 'Loading...',
     // Header badge
     headerRecords: '{0} records',
@@ -90,17 +90,17 @@ const I18N = {
   zh: {
     brand: 'z/OS RMF 工作負載分析器',
     uploadTitle: '上傳 RMF 報告',
-    uploadDesc: '解析並分析 z/OS RMF 工作負載活動報告',
+    uploadDesc: '解析並分析 z/OS RMF 工作負載活動報告（所有資料僅存於瀏覽器中）',
     backToDashboard: '返回儀表板',
     dropFiles: '將 RMF 檔案拖曳至此',
     orBrowse: '或點擊瀏覽檔案 (.txt, .rmf)',
     selectFiles: '選擇檔案',
     selectedFiles: '已選檔案',
-    uploadParse: '上傳並解析',
+    uploadParse: '解析檔案',
     clear: '清除',
     replaceExisting: '取代現有檔案',
-    uploadedFiles: '已上傳檔案',
-    clearAll: '清除所有檔案',
+    uploadedFiles: '已載入檔案',
+    clearAll: '清除所有資料',
     uploadNew: '上傳新檔案',
     uploadMore: '上傳更多',
     totalRecords: '總記錄數',
@@ -139,20 +139,20 @@ const I18N = {
     dtLast: '\u00bb',
     dtNext: '\u203a',
     dtPrevious: '\u2039',
-    toastUploadSuccess: '成功上傳 {0} 個檔案，耗時 {1} 秒',
-    toastClearConfirm: '確定要清除所有已上傳的檔案嗎？',
-    toastCleared: '所有檔案已清除',
+    toastUploadSuccess: '成功解析 {0} 個檔案，耗時 {1} 秒',
+    toastClearConfirm: '確定要清除所有資料嗎？',
+    toastCleared: '所有資料已清除',
     toastOnlyTxtRmf: '僅允許 .txt 和 .rmf 檔案',
     toastSelectFiles: '請選擇要上傳的檔案',
     toastSizeLimit: '檔案總大小超過 50MB 限制',
-    toastUploadFail: '上傳失敗',
+    toastUploadFail: '解析失敗',
     toastLoadFail: '載入資料失敗',
     toastMetaFail: '載入元資料失敗',
     toastCheckFail: '檢查現有檔案失敗，請重新整理頁面。',
-    toastClearFail: '清除檔案時發生錯誤',
+    toastClearFail: '清除資料時發生錯誤',
     loadingData: '載入資料中...',
-    loadingUpload: '上傳並解析檔案中...',
-    loadingClear: '清除檔案中...',
+    loadingUpload: '於瀏覽器中解析檔案...',
+    loadingClear: '清除資料中...',
     loadingDefault: '載入中...',
     headerRecords: '{0} 筆記錄',
   }
@@ -201,25 +201,20 @@ function toggleLanguage() {
 }
 
 // ============================================================
-// Global state
+// Global state - ALL data stays in browser memory only
 // ============================================================
-let metadata = {};
-let currentData = [];
+let allRecords = [];       // All parsed records (replaces server-side ALL_RECORDS)
+let parseStats = {};       // Parse statistics
+let metadata = {};         // Filter metadata computed from allRecords
+let currentData = [];      // Currently filtered/displayed data
 let dataTable = null;
 let cpuChart = null;
-let selectedFiles = [];
+let selectedFiles = [];    // Files selected for upload (File objects)
+let uploadedFileInfos = []; // Info about files that have been parsed
 let hasExistingData = false;
 
 // Debounce timer
-let filterDebounceTimer = null;
 const DEBOUNCE_DELAY = 300;
-
-// Retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
-
-// AbortController for cancelling in-flight GET requests
-let currentFetchController = null;
 
 // Chart optimization thresholds
 const CHART_MAX_POINTS = 1000;
@@ -250,37 +245,6 @@ function debounce(func, wait) {
 // Utility: Format large numbers with locale separators
 function formatNumber(n) {
   return new Intl.NumberFormat().format(n);
-}
-
-// Utility: Fetch with retry logic and AbortController (GET only)
-async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
-  const method = (options.method || 'GET').toUpperCase();
-  const isMutating = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
-
-  // For GET requests, cancel any previous in-flight request
-  if (!isMutating) {
-    if (currentFetchController) currentFetchController.abort();
-    currentFetchController = new AbortController();
-    options.signal = currentFetchController.signal;
-  }
-
-  try {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return response;
-  } catch (error) {
-    // Don't retry aborted requests
-    if (error.name === 'AbortError') throw error;
-    // Don't retry mutating requests to avoid duplicates
-    if (retries > 0 && !isMutating) {
-      console.warn(`Fetch failed, retrying... (${retries} attempts left)`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (MAX_RETRIES - retries + 1)));
-      return fetchWithRetry(url, options, retries - 1);
-    }
-    throw error;
-  }
 }
 
 // Escape HTML to prevent XSS
@@ -326,11 +290,12 @@ function startSystemClock() {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   currentLang = detectLanguage();
   applyI18n();
   startSystemClock();
-  await checkExistingFiles();
+  // No server check - always start with upload section
+  showUploadSection();
   wireEvents();
   wireUploadEvents();
   wireKeyboardShortcuts();
@@ -367,34 +332,10 @@ function wireKeyboardShortcuts() {
       e.preventDefault();
       const dataSection = document.getElementById('dataSection');
       if (dataSection.style.display !== 'none') {
-        exportCSV();
+        doExportCSV();
       }
     }
   });
-}
-
-// Check for existing files with retry
-async function checkExistingFiles() {
-  try {
-    const res = await fetchWithRetry('/api/files');
-    const data = await res.json();
-
-    if (data.files && data.files.length > 0) {
-      hasExistingData = true;
-      showDataSection();
-      await loadMetadata();
-      await loadData();
-      renderExistingFiles(data.files);
-    } else {
-      hasExistingData = false;
-      showUploadSection();
-    }
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    console.error('Error checking files:', e);
-    showToast(t('toastCheckFail'), 'error');
-    showUploadSection();
-  }
 }
 
 // Section visibility
@@ -436,7 +377,6 @@ function wireUploadEvents() {
   });
 
   // Stop clicks on the file-input-wrapper (a <label>) from bubbling to dropZone.
-  // The native <input type="file"> inside the label handles taps directly.
   const fileInputWrapper = dropZone.querySelector('.file-input-wrapper');
   if (fileInputWrapper) {
     fileInputWrapper.addEventListener('click', (e) => {
@@ -446,7 +386,6 @@ function wireUploadEvents() {
 
   // Click on drop zone area (not the file input wrapper) to open file picker
   dropZone.addEventListener('click', (e) => {
-    // The file-input-wrapper click is stopped above; this handles the rest
     if (e.target === dropZone || e.target.closest('.upload-zone-icon') || e.target.tagName === 'H3' || e.target.tagName === 'P') {
       fileInput.click();
     }
@@ -458,7 +397,7 @@ function wireUploadEvents() {
   });
 
   // Upload button
-  document.getElementById('btnUpload').addEventListener('click', uploadFiles);
+  document.getElementById('btnUpload').addEventListener('click', uploadAndParseFiles);
 
   // Clear files button
   document.getElementById('btnClearFiles').addEventListener('click', () => {
@@ -467,7 +406,7 @@ function wireUploadEvents() {
   });
 
   // Clear all button
-  document.getElementById('btnClearAll').addEventListener('click', clearAllFiles);
+  document.getElementById('btnClearAll').addEventListener('click', clearAllData);
 
   // Upload more button
   document.getElementById('btnUploadMore').addEventListener('click', () => {
@@ -542,33 +481,25 @@ window.removeFile = function(index) {
   updateFileList();
 };
 
-window.clearAllFiles = async function() {
+// Clear all data - purely client-side, just reset state
+window.clearAllData = async function() {
   if (!confirm(t('toastClearConfirm'))) return;
 
-  showLoading(t('loadingClear'));
-
-  try {
-    const res = await fetchWithRetry('/api/files/clear', { method: 'POST' });
-    const data = await res.json();
-
-    if (data.success) {
-      currentData = [];
-      hasExistingData = false;
-      showUploadSection();
-      document.getElementById('existingFilesSection').style.display = 'none';
-      selectedFiles = [];
-      updateFileList();
-      showToast(t('toastCleared'), 'success');
-    }
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    showToast(t('toastClearFail') + ': ' + e.message, 'error');
-  } finally {
-    hideLoading();
-  }
+  allRecords = [];
+  parseStats = {};
+  metadata = {};
+  currentData = [];
+  uploadedFileInfos = [];
+  hasExistingData = false;
+  showUploadSection();
+  document.getElementById('existingFilesSection').style.display = 'none';
+  selectedFiles = [];
+  updateFileList();
+  showToast(t('toastCleared'), 'success');
 };
 
-async function uploadFiles() {
+// Parse files entirely in the browser using parser.js
+async function uploadAndParseFiles() {
   if (selectedFiles.length === 0) {
     showToast(t('toastSelectFiles'), 'warning');
     return;
@@ -583,32 +514,48 @@ async function uploadFiles() {
 
   showLoading(t('loadingUpload'));
 
-  const formData = new FormData();
-  selectedFiles.forEach(file => formData.append('files', file));
-  formData.append('clear_existing', document.getElementById('clearExisting').checked);
-
   try {
-    const res = await fetchWithRetry('/api/upload', {
-      method: 'POST',
-      body: formData
-    }, MAX_RETRIES);
-
-    const data = await res.json();
-
-    if (data.success) {
-      showToast(t('toastUploadSuccess', data.uploaded_files.length, data.parse_time_seconds || 0), 'success');
-      selectedFiles = [];
-      updateFileList();
-
-      hasExistingData = true;
-      showDataSection();
-      await loadMetadata();
-      await loadData();
-    } else {
-      showToast(data.error || t('toastUploadFail'), 'error');
+    // Check if user wants to replace existing data
+    const clearFirst = document.getElementById('clearExisting').checked;
+    if (clearFirst) {
+      allRecords = [];
+      uploadedFileInfos = [];
     }
+
+    // Parse all files in browser using parser.js
+    const { allRecords: newRecords, stats } = await parseAllFiles(selectedFiles);
+
+    // Merge new records with existing
+    allRecords = allRecords.concat(newRecords);
+    parseStats = stats;
+
+    // Track uploaded file info for display
+    selectedFiles.forEach(f => {
+      uploadedFileInfos.push({
+        name: f.name,
+        size: f.size,
+        size_human: f.size < 1024 * 1024
+          ? `${(f.size / 1024).toFixed(1)} KB`
+          : `${(f.size / 1024 / 1024).toFixed(2)} MB`,
+      });
+    });
+
+    showToast(
+      t('toastUploadSuccess', stats.files_parsed, stats.parse_time_seconds),
+      'success'
+    );
+
+    selectedFiles = [];
+    updateFileList();
+
+    hasExistingData = true;
+    showDataSection();
+    refreshMetadata();
+    refreshData();
+    renderExistingFiles(uploadedFileInfos);
+
   } catch (e) {
-    if (e.name === 'AbortError') return;
+    console.error('Parse error:', e);
     showToast(t('toastUploadFail') + ': ' + e.message, 'error');
   } finally {
     hideLoading();
@@ -645,39 +592,32 @@ function renderExistingFiles(files) {
   document.getElementById('existingFilesSection').style.display = '';
 }
 
-// Metadata with retry
-async function loadMetadata() {
-  try {
-    const res = await fetchWithRetry('/api/metadata');
-    metadata = await res.json();
+// Compute and display metadata from local data
+function refreshMetadata() {
+  metadata = computeMetadata(allRecords, parseStats);
 
-    fillSelect('filterSource', metadata.file_sources);
-    fillSelect('filterWorkload', metadata.workloads);
-    fillSelect('filterSvcClass', metadata.service_classes);
+  fillSelect('filterSource', metadata.file_sources);
+  fillSelect('filterWorkload', metadata.workloads);
+  fillSelect('filterSvcClass', metadata.service_classes);
 
-    // Also populate mobile filter selects
-    fillSelect('mobileFilterSource', metadata.file_sources);
-    fillSelect('mobileFilterWorkload', metadata.workloads);
-    fillSelect('mobileFilterSvcClass', metadata.service_classes);
+  // Also populate mobile filter selects
+  fillSelect('mobileFilterSource', metadata.file_sources);
+  fillSelect('mobileFilterWorkload', metadata.workloads);
+  fillSelect('mobileFilterSvcClass', metadata.service_classes);
 
-    if (metadata.date_range.min) {
-      document.getElementById('filterStart').value = metadata.date_range.min.substring(0, 16);
-      document.getElementById('mobileFilterStart').value = metadata.date_range.min.substring(0, 16);
-    }
-    if (metadata.date_range.max) {
-      document.getElementById('filterEnd').value = metadata.date_range.max.substring(0, 16);
-      document.getElementById('mobileFilterEnd').value = metadata.date_range.max.substring(0, 16);
-    }
-
-    document.getElementById('statRecords').textContent = formatNumber(metadata.total_records);
-    document.getElementById('statFiles').textContent = metadata.parse_stats.files_parsed;
-    document.getElementById('statClasses').textContent = metadata.service_classes.length;
-    document.getElementById('headerBadge').textContent = t('headerRecords', formatNumber(metadata.total_records));
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    console.error('Error loading metadata:', e);
-    showToast(t('toastMetaFail'), 'error');
+  if (metadata.date_range.min) {
+    document.getElementById('filterStart').value = metadata.date_range.min.substring(0, 16);
+    document.getElementById('mobileFilterStart').value = metadata.date_range.min.substring(0, 16);
   }
+  if (metadata.date_range.max) {
+    document.getElementById('filterEnd').value = metadata.date_range.max.substring(0, 16);
+    document.getElementById('mobileFilterEnd').value = metadata.date_range.max.substring(0, 16);
+  }
+
+  document.getElementById('statRecords').textContent = formatNumber(metadata.total_records);
+  document.getElementById('statFiles').textContent = metadata.parse_stats.files_parsed || 0;
+  document.getElementById('statClasses').textContent = metadata.service_classes.length;
+  document.getElementById('headerBadge').textContent = t('headerRecords', formatNumber(metadata.total_records));
 }
 
 function fillSelect(id, items) {
@@ -696,32 +636,14 @@ function fillSelect(id, items) {
   if (currentVal && items.includes(currentVal)) el.value = currentVal;
 }
 
-// Load data with optional pagination
-async function loadData(filters = null, limit = null, offset = null) {
-  showLoading(t('loadingData'));
+// Filter and display data from local records
+function refreshData(filters = null) {
+  const filtered = applyFilters(allRecords, filters);
+  currentData = filtered;
 
-  try {
-    const params = new URLSearchParams();
-    if (filters) {
-      Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
-    }
-    if (limit) params.set('limit', limit);
-    if (offset) params.set('offset', offset);
-
-    const res = await fetchWithRetry('/api/data?' + params);
-    const json = await res.json();
-    currentData = json.data;
-
-    document.getElementById('statFiltered').textContent = formatNumber(json.total_filtered || json.count);
-    renderTable();
-    renderChart();
-  } catch (e) {
-    if (e.name === 'AbortError') return;
-    console.error('Error loading data:', e);
-    showToast(t('toastLoadFail') + ': ' + e.message, 'error');
-  } finally {
-    hideLoading();
-  }
+  document.getElementById('statFiltered').textContent = formatNumber(filtered.length);
+  renderTable();
+  renderChart();
 }
 
 // Render table - keep jQuery only for DataTables
@@ -1112,15 +1034,14 @@ function renderMobileCards() {
 }
 
 // Debounced filter handler
-const debouncedLoadData = debounce(() => {
-  loadData(getFilters());
+const debouncedRefreshData = debounce(() => {
+  refreshData(getFilters());
 }, DEBOUNCE_DELAY);
 
-// Export CSV helper
-function exportCSV() {
-  const params = new URLSearchParams();
-  Object.entries(getFilters()).forEach(([k, v]) => { if (v) params.set(k, v); });
-  window.location.href = '/api/export/csv?' + params;
+// Export CSV - client-side using parser.js
+function doExportCSV() {
+  const filtered = applyFilters(allRecords, getFilters());
+  exportToCSV(filtered);
 }
 
 // Events
@@ -1129,14 +1050,14 @@ function wireEvents() {
   document.getElementById('btnLangToggle').addEventListener('click', toggleLanguage);
 
   // Apply filters
-  document.getElementById('btnApply').addEventListener('click', () => loadData(getFilters()));
+  document.getElementById('btnApply').addEventListener('click', () => refreshData(getFilters()));
 
   // Debounced filter inputs
   ['filterSource', 'filterWorkload', 'filterSvcClass'].forEach(id => {
-    document.getElementById(id).addEventListener('change', debouncedLoadData);
+    document.getElementById(id).addEventListener('change', debouncedRefreshData);
   });
   ['filterStart', 'filterEnd'].forEach(id => {
-    document.getElementById(id).addEventListener('change', debouncedLoadData);
+    document.getElementById(id).addEventListener('change', debouncedRefreshData);
   });
 
   document.getElementById('btnReset').addEventListener('click', () => {
@@ -1149,10 +1070,10 @@ function wireEvents() {
     if (metadata.date_range && metadata.date_range.max) {
       document.getElementById('filterEnd').value = metadata.date_range.max.substring(0, 16);
     }
-    loadData();
+    refreshData();
   });
 
-  document.getElementById('btnExport').addEventListener('click', exportCSV);
+  document.getElementById('btnExport').addEventListener('click', doExportCSV);
 
   // Mobile upload more button
   document.getElementById('btnMobileUploadMore').addEventListener('click', () => {
@@ -1164,7 +1085,7 @@ function wireEvents() {
   // Mobile export button
   const btnMobileExport = document.getElementById('btnMobileExport');
   if (btnMobileExport) {
-    btnMobileExport.addEventListener('click', exportCSV);
+    btnMobileExport.addEventListener('click', doExportCSV);
   }
 
   // Mobile upload drawer button
@@ -1217,7 +1138,7 @@ function wireEvents() {
 
   if (btnMobileApply) {
     btnMobileApply.addEventListener('click', () => {
-      loadData(getMobileFilters());
+      refreshData(getMobileFilters());
       closeFilterDrawer();
     });
   }
@@ -1233,7 +1154,7 @@ function wireEvents() {
       if (metadata.date_range && metadata.date_range.max) {
         document.getElementById('mobileFilterEnd').value = metadata.date_range.max.substring(0, 16);
       }
-      loadData();
+      refreshData();
       closeFilterDrawer();
     });
   }
